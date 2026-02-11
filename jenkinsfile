@@ -1,0 +1,78 @@
+pipeline {
+    agent any
+
+    options {
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '2'))  //Keep only last 2 builds
+        timeout(time: 120, unit: 'SECONDS')
+    }
+
+    tools {
+        maven 'maven3'
+        jdk 'jdk17'
+    } 
+     
+    environment {
+       DOCKER_USER = "krishna11sai"  //Docker Hub username
+       DOCKER_PASS = credentials('doc')  //Docker-Hub password/token saved  at Jenkins Credentials
+       IMAGE_TAG   = "${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git 'https://github.com/KastroVKiran/Ecommerce-App-Kastro.git'
+            }
+        }
+
+        stage('Maven Compile') {
+            steps {
+                sh "mvn compile"
+            }
+        }
+        stage('File System Scan') {
+            steps {
+                sh "trivy fs --format table -o trivy-fs-report.html ."
+            }
+        }
+
+        stage('Maven Package') {
+            steps {
+                sh "mvn package -DskipTests=true"
+            }
+        }
+
+        stage('Docker Login') {
+             steps {
+                echo 'docker login'
+                sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+            }
+        }
+
+        stage('Docker build and push') {
+            steps {
+              echo 'docker build' 
+              sh "docker build -t ${DOCKER_USER}/ecommerce-app:${BUILD_NUMBER} ."
+              sh "docker push ${DOCKER_USER}/ecommerce-app:${BUILD_NUMBER}"
+            }
+        }
+        stage('Trivy Docker Image Scan') {
+            steps {
+                sh "trivy image --format table -o trivy-image-report.html ${DOCKER_USER}/ecommerce-app:${BUILD_NUMBER}"
+            }
+        }
+
+        stage('connect to kubernetes cluster') {
+            steps {
+                echo 'connecting to k8s cluster'
+                sh "aws eks update-kubeconfig --region ap-south-1 --name Expense"
+            }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo 'checking where am i'
+                sh "pwd && ls -l"
+            }
+        }
+    }
+}
