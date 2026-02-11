@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token #creating as token for pipeline usage in k8s credentials stage connection
+metadata:
+  name: mysecretname
+  annotations:
+    kubernetes.io/service-account.name: jenkins-sa  #Here my service account name is 'jenkins-sa' based on the above created yaml files
